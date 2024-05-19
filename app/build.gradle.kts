@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.escanerapp"
+    namespace = "com.pdi.escanerapp"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.example.escanerapp"
+        applicationId = "com.pdi.escanerapp"
         minSdk = 23
         targetSdk = 34
         versionCode = 1
