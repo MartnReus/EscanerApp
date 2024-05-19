@@ -1,18 +1,9 @@
-package com.example.escanerapp
+package com.pdi.escanerapp
 
-import android.Manifest
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
-import android.view.SurfaceControlViewHost
-import android.view.SurfaceView
-import android.view.View
-import android.view.WindowManager
 import android.widget.Button
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat
-import com.example.escanerapp.CameraActivity
 
 class MainActivity : AppCompatActivity() {
 

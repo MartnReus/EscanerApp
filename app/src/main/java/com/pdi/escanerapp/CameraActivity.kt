@@ -1,20 +1,16 @@
-package com.example.escanerapp
+package com.pdi.escanerapp
 
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
-import android.view.SurfaceControlViewHost
 import android.view.SurfaceView
-import android.view.View
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import org.opencv.android.CameraActivity
 import org.opencv.android.CameraBridgeViewBase
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2
-
 import org.opencv.android.OpenCVLoader
 import org.opencv.core.Core
 import org.opencv.core.CvType
