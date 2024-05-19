@@ -1,23 +1,32 @@
 package com.pdi.escanerapp
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.Bundle
 import android.util.Log
 import android.view.SurfaceView
 import android.view.WindowManager
+import android.widget.Button
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import org.opencv.android.CameraActivity
 import org.opencv.android.CameraBridgeViewBase
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2
 import org.opencv.android.OpenCVLoader
+import org.opencv.android.Utils
 import org.opencv.core.Core
 import org.opencv.core.CvType
 import org.opencv.core.Mat
 import org.opencv.core.Point
 import org.opencv.core.Scalar
 import org.opencv.imgproc.Imgproc
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 
 class CameraActivity : CameraActivity(), CvCameraViewListener2 {
 
@@ -26,6 +35,8 @@ class CameraActivity : CameraActivity(), CvCameraViewListener2 {
     }
 
     private lateinit var mOpenCvCameraView: CameraBridgeViewBase;
+    private lateinit var mTakePictureButton: Button;
+    private lateinit var mCapturedFrame: Mat;
 
     init {
         Log.i(TAG,"Instantiated new ${this::class.java.simpleName}")
@@ -43,8 +54,6 @@ class CameraActivity : CameraActivity(), CvCameraViewListener2 {
             return;
         }
 
-
-
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_camera)
 
@@ -58,7 +67,16 @@ class CameraActivity : CameraActivity(), CvCameraViewListener2 {
             mOpenCvCameraView.setCameraPermissionGranted()
         } else {
             Log.i(TAG,"Camera Permission: ${false}")
+            (Toast.makeText(this, "Error while checking camera permission, try again", Toast.LENGTH_LONG)).show();
+            setResult(Activity.RESULT_CANCELED)
+            finish()
         }
+
+        mTakePictureButton = findViewById(R.id.btn_take_picture)
+        mTakePictureButton.setOnClickListener {
+            captureAndReturnFrame()
+        }
+
     }
 
     override fun onPause() {
@@ -83,9 +101,48 @@ class CameraActivity : CameraActivity(), CvCameraViewListener2 {
     }
 
     override fun onCameraFrame(inputFrame: CameraBridgeViewBase.CvCameraViewFrame): Mat {
+        mCapturedFrame = inputFrame.rgba()
         return inputFrame.rgba()
     }
 
+    private fun captureAndReturnFrame() {
+        val proccessedFrame = proccessFrame(mCapturedFrame)
+        val bitmap = convertMatToBitmap(proccessedFrame)
+        val rotatedBitmap = rotateBitmap(bitmap,90f)
+        val filePath = saveBitmapToFile(rotatedBitmap)
+
+        val resultIntent= Intent()
+        resultIntent.putExtra("image_path",filePath)
+        setResult(Activity.RESULT_OK,resultIntent)
+        finish()
+    }
+
+    private fun rotateBitmap(bitmap: Bitmap, degrees: Float): Bitmap {
+        val matrix = Matrix()
+        matrix.postRotate(degrees)
+        return Bitmap.createBitmap(bitmap,0,0,bitmap.width,bitmap.height,matrix,true)
+    }
+
+    private fun convertMatToBitmap(mat: Mat): Bitmap {
+        val bmp = Bitmap.createBitmap(mat.cols(),mat.rows(),Bitmap.Config.ARGB_8888)
+        Utils.matToBitmap(mat,bmp)
+        return bmp
+    }
+
+    private fun saveBitmapToFile(bitmap: Bitmap): String? {
+        val fileName = "captured_image.png"
+        val file = File(getExternalFilesDir(null),fileName)
+        return try {
+            val out = FileOutputStream(file)
+            bitmap.compress(Bitmap.CompressFormat.PNG,100,out)
+            out.flush()
+            out.close()
+            file.absolutePath
+        } catch (e: IOException) {
+            e.printStackTrace()
+            null
+        }
+    }
     fun proccessFrame(inputFrame: Mat): Mat {
 
         // Convertir a blanco y negro
@@ -119,9 +176,6 @@ class CameraActivity : CameraActivity(), CvCameraViewListener2 {
         val edgesY = Mat()
         Imgproc.filter2D(bwFrame32,edgesX,-1,kernelH,Point(-1.0,-1.0))
         Imgproc.filter2D(bwFrame32,edgesY,-1,kernelV,Point(-1.0,-1.0))
-
-        val edgesXAbs = Mat()
-        val edgesYAbs = Mat()
 
         val filteredFrame32 = Mat()
         val filteredFrame32Abs = Mat()
