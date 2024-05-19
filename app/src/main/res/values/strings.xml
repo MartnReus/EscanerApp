@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">EscanerApp</string>
+    <string name="button_text">Press the Button</string>
+    <string name="button_pressed">The princess is in another castle</string>
+</resources>
