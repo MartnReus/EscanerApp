@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">EscanerApp</string>
+    <string name="app_name">EscanerApp2</string>
     <string name="button_text">Press the Button</string>
     <string name="button_pressed">The princess is in another castle</string>
     <string name="camera_text">Take Picture</string>

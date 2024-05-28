@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity() {
 
         btnOpenCamera.setOnClickListener {
             val intent = Intent(this,CameraActivity::class.java)
+//            val intent = Intent(this,Camera2Activity::class.java)
             cameraActivityResultLauncher.launch(intent)
         }
     }
