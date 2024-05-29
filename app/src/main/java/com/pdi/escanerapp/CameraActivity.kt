@@ -70,6 +70,7 @@ class CameraActivity : CameraActivity(), CvCameraViewListener2 {
         setContentView(R.layout.activity_camera)
 
         mOpenCvCameraView = findViewById(R.id.camera_view)
+        mOpenCvCameraView.setMaxFrameSize(1920,1080);
         mOpenCvCameraView.visibility = SurfaceView.VISIBLE
         mOpenCvCameraView.setCvCameraViewListener(this)
 

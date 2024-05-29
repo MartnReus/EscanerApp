@@ -19,16 +19,12 @@ import android.os.Bundle
 import android.util.Log
 import android.util.SparseIntArray
 import android.view.Surface
-import android.view.SurfaceView
 import android.view.TextureView
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
-import org.opencv.android.CameraActivity
-import org.opencv.android.CameraBridgeViewBase
-import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.core.Core
@@ -41,14 +37,11 @@ import org.opencv.core.MatOfPoint2f
 import org.opencv.core.Point
 import org.opencv.core.Scalar
 import org.opencv.core.Size
-import org.opencv.core.times
 import org.opencv.imgproc.Imgproc
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.util.concurrent.Executors
-import kotlin.math.pow
-import kotlin.math.sqrt
 
 class Camera2Activity : AppCompatActivity() {
 
@@ -62,7 +55,9 @@ class Camera2Activity : AppCompatActivity() {
     private lateinit var mCaptureSession: CameraCaptureSession;
 
     private lateinit var mTextureView: TextureView;
+    private var isTextureViewReady = false
     private lateinit var mImageReader: ImageReader;
+    private val mFileName = "captured_photo.jpg";
     private lateinit var mOutputDir: File;
 
     private lateinit var mTakePictureButton: Button;
@@ -101,6 +96,8 @@ class Camera2Activity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_camera2)
 
+        mOutputDir = File(getExternalFilesDir(null),mFileName)
+
         mTextureView = findViewById(R.id.texture_view)
         mCameraManager = getSystemService(CAMERA_SERVICE) as CameraManager
 
@@ -120,6 +117,8 @@ class Camera2Activity : AppCompatActivity() {
                 width: Int,
                 height: Int
             ) {
+                Log.i(TAG, "SurfaceTexture available")
+                isTextureViewReady = true
                 openCamera()
             }
 
@@ -128,20 +127,51 @@ class Camera2Activity : AppCompatActivity() {
                 width: Int,
                 height: Int
             ) {
+                Log.i(TAG, "SurfaceTexture size changed")
                 TODO("Not yet implemented")
             }
 
             override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+                Log.i(TAG, "SurfaceTexture updated")
+
+                if (!isTextureViewReady) {
+                    Log.w(TAG, "TextureView is not ready yet")
+                    return
+                }
+
                 val bitmap = mTextureView.bitmap
-                mCapturedFrame = Mat(bitmap!!.height,bitmap.width,CvType.CV_8UC3)
-                Utils.bitmapToMat(bitmap,mCapturedFrame)
-//                val processedFrame = processLiveFrame(mCapturedFrame)
-//                Utils.matToBitmap(processedFrame,bitmap)
-//                mCapturedFrame.release()
+                if (bitmap == null) {
+                    Log.e(TAG, "Failed to get bitmap from TextureView")
+                    return
+                }
+//                mCapturedFrame = Mat(bitmap!!.height,bitmap.width,CvType.CV_8UC3)
+                var frame = Mat(bitmap!!.height,bitmap.width,CvType.CV_8UC3)
+//                Utils.bitmapToMat(bitmap,mCapturedFrame)
+                Utils.bitmapToMat(bitmap,frame)
+                val processedFrame = processLiveFrame(frame)
+                val processedBitmap = Bitmap.createBitmap(processedFrame.cols(), processedFrame.rows(), Bitmap.Config.ARGB_8888)
+                Utils.matToBitmap(processedFrame,processedBitmap)
+
+                if (!mTextureView.isAvailable) {
+                    Log.e("TextureView", "SurfaceTexture is not available or valid")
+                    return
+                }
+
+
+                // Draw the processed bitmap
+//                mTextureView.surfaceTexture?.updateTexImage()
+
+                frame.release()
+                processedFrame.release()
 
             }
 
+            // Callback triggered when a new camera frame is available
+
             override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+                Log.i(TAG, "SurfaceTexture destroyed")
+                isTextureViewReady = false
+
                 return true
             }
         }
@@ -180,8 +210,8 @@ class Camera2Activity : AppCompatActivity() {
     }
 
     private fun startPreview() {
-        val width = 1080
-        val height = 1920
+        val width = 1920
+        val height = 1080
 
         val surfaceTexture = mTextureView.surfaceTexture
         surfaceTexture?.setDefaultBufferSize(width,height)
@@ -236,6 +266,7 @@ class Camera2Activity : AppCompatActivity() {
             ) {
                 super.onCaptureCompleted(session, request, result)
                 val resultIntent= Intent()
+                Log.i(TAG,"mOutputDir: $mOutputDir")
                 resultIntent.putExtra("image_path",mOutputDir.absolutePath)
                 setResult(Activity.RESULT_OK,resultIntent)
                 finish()
@@ -254,7 +285,7 @@ class Camera2Activity : AppCompatActivity() {
             val rotation = windowManager.defaultDisplay.rotation
             val exifOrientation = when (rotation) {
                 Surface.ROTATION_0 -> ExifInterface.ORIENTATION_ROTATE_90
-                Surface.ROTATION_90 -> ExifInterface.ORIENTATION_NORMAL
+                Surface.ROTATION_90 ->  ExifInterface.ORIENTATION_NORMAL
                 Surface.ROTATION_180 -> ExifInterface.ORIENTATION_ROTATE_270
                 Surface.ROTATION_270 -> ExifInterface.ORIENTATION_ROTATE_180
                 else -> ExifInterface.ORIENTATION_UNDEFINED
@@ -293,9 +324,9 @@ class Camera2Activity : AppCompatActivity() {
             Imgproc.line(connected_edged, Point(line[0], line[1]), Point(line[2], line[3]), linesColor, 3)
         }
 
-//        val boundedImage = Mat()
-//        Imgproc.resize(connected_edged, boundedImage, Size(orig.cols().toDouble(), orig.rows().toDouble()))
-//        return boundedImage
+        val boundedImage = Mat()
+        Imgproc.resize(connected_edged, boundedImage, Size(orig.cols().toDouble(), orig.rows().toDouble()))
+        return boundedImage
 
         val contours = mutableListOf<MatOfPoint>()
         val hierarchy = Mat()
