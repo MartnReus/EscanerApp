@@ -6,18 +6,8 @@ import android.util.Log
 import android.widget.ImageView
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
-import org.opencv.android.Utils
-import org.opencv.core.CvType
-import org.opencv.core.Mat
-import org.opencv.core.MatOfInt
-import org.opencv.core.MatOfPoint
-import org.opencv.core.MatOfPoint2f
-import org.opencv.core.Point
-import org.opencv.core.Scalar
-import org.opencv.core.Size
-import org.opencv.imgproc.Imgproc
-
 import com.pdi.escanerapp.EscanerUtils.matImage
+import org.opencv.core.MatOfPoint
 
 class FrameAnalyzer(private val previewView: ImageView): ImageAnalysis.Analyzer {
     companion object {
