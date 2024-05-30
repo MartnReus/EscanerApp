@@ -28,13 +28,10 @@ import org.opencv.core.MatOfPoint2f
 import org.opencv.core.Point
 import org.opencv.core.Scalar
 import org.opencv.core.Size
-import org.opencv.core.times
 import org.opencv.imgproc.Imgproc
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import kotlin.math.pow
-import kotlin.math.sqrt
 
 class CameraActivity : CameraActivity(), CvCameraViewListener2 {
 

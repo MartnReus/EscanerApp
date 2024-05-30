@@ -1,14 +1,22 @@
 package com.pdi.escanerapp
 
 import android.Manifest
+import android.app.Activity
+import android.content.ContentUris
 import android.content.ContentValues
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -23,15 +31,25 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import com.pdi.escanerapp.databinding.ActivityCamera2Binding
 import org.opencv.android.OpenCVLoader
+import org.opencv.android.Utils
+import org.opencv.core.Mat
+import org.opencv.core.MatOfPoint2f
+import java.io.File
+import java.io.IOException
 import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+import com.pdi.escanerapp.EscanerUtils.matImage
+
 typealias LumaListener = (luma: Double) -> Unit
 class Camera2Activity : AppCompatActivity() {
     private lateinit var viewBinding: ActivityCamera2Binding
+
+    private val mFileName = "captured_image.jpg";
+    private lateinit var mExternalUri: String;
 
     private var imageCapture: ImageCapture? = null
     private lateinit var cameraExecutor: ExecutorService
@@ -110,7 +128,8 @@ class Camera2Activity : AppCompatActivity() {
 
             val resolutionSelector = ResolutionSelector.Builder()
                 .setResolutionStrategy(
-                    ResolutionStrategy(android.util.Size(1280,720),
+                    ResolutionStrategy(android.util.Size(1024,576),
+//                        ResolutionStrategy(android.util.Size(1280,720),
                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER )
                 )
                 .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
@@ -146,20 +165,36 @@ class Camera2Activity : AppCompatActivity() {
         },ContextCompat.getMainExecutor(this))
 
     }
-    private fun takePhoto(){
+    private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
 
-        // Create time stamped name and MediaStore entry.
-        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-            .format(System.currentTimeMillis())
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.DISPLAY_NAME, mFileName)
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/EscanerApp")
             }
         }
+
+        // Check if the file already exists and get its URI if it does
+        val imageUri = contentResolver.query(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Images.Media._ID),
+            "${MediaStore.Images.Media.DISPLAY_NAME} = ? AND ${MediaStore.Images.Media.RELATIVE_PATH} = ?",
+            arrayOf(mFileName, "Pictures/EscanerApp/"),
+            null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
+                ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+            } else {
+                null
+            }
+        }
+
+        // If the image URI exists, delete the existing file
+        imageUri?.let { contentResolver.delete(it, null, null) }
 
         // Create output options object which contains file + metadata
         val outputOptions = ImageCapture.OutputFileOptions
@@ -172,20 +207,91 @@ class Camera2Activity : AppCompatActivity() {
         imageCapture.takePicture(
             outputOptions,
             ContextCompat.getMainExecutor(this),
-            object: ImageCapture.OnImageSavedCallback {
+            object : ImageCapture.OnImageSavedCallback {
                 override fun onError(exc: ImageCaptureException) {
                     Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    val msg = "Photo capture succeeded: ${output.savedUri}"
-                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, msg)
-                }
-            }
-        )
+                    val savedUri = output.savedUri ?: return
 
+                    try {
+                        val filePath = getFilePathFromUri(savedUri)
+
+                        val inputStream = contentResolver.openInputStream(savedUri)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        inputStream?.close()
+
+                        // Edit the bitmap
+                        val editedBitmap = processBitmap(bitmap)
+
+                        // Save the edited bitmap with the same name
+                        saveBitmapToFile(editedBitmap, savedUri)
+                        val msg = "Photo capture succeeded: $savedUri"
+                        Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
+                        Log.d(TAG, msg)
+
+
+                        val resultIntent= Intent()
+                        resultIntent.putExtra("image_path",filePath)
+                        setResult(Activity.RESULT_OK,resultIntent)
+                        finish()
+                    } catch (e: IOException) {
+                        Log.e(TAG, "Error loading bitmap from URI: ${e.message}", e)
+                    }
+                }            }
+        )
     }
+
+    private fun getFilePathFromUri(uri: Uri): String? {
+        val projection = arrayOf(MediaStore.Images.Media.DATA)
+        val cursor = contentResolver.query(uri, projection, null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val columnIndex = it.getColumnIndexOrThrow(MediaStore.Images.Media.DATA)
+                return it.getString(columnIndex)
+            }
+        }
+        return null
+    }
+
+    private fun saveBitmapToFile(bitmap: Bitmap, uri: Uri) {
+        try {
+            val outputStream = contentResolver.openOutputStream(uri)!!
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+            outputStream.close()
+        } catch (e: IOException) {
+            Log.e(TAG, "Error saving bitmap to file: ${e.message}", e)
+        }
+    }
+
+    private fun processBitmap(bitmap: Bitmap): Bitmap {
+        val filterKernelSize = 5.0
+
+        val morphKernelSize = 5.0
+        val morphItNumber = 3
+
+        val thr1 = 150.0
+        val thr2 = 230.0
+
+        EscanerUtils.loadBitmapAsMat(bitmap)
+        matImage = EscanerUtils.matToGrayscale(matImage)
+        matImage = EscanerUtils.matFilterGaussian(matImage,filterKernelSize)
+        matImage = EscanerUtils.matMorphClose(matImage,morphKernelSize,morphItNumber)
+        matImage = EscanerUtils.matCanny(matImage,thr1,thr2)
+//        matImage = EscanerUtils.matEdgesHough(matImage)
+        val contours = EscanerUtils.matDetectContours(matImage)
+        val convexHull = EscanerUtils.findConvexHull(contours)
+
+        EscanerUtils.loadBitmapAsMat(bitmap)
+
+
+        matImage = EscanerUtils.fourPointTransform(matImage, MatOfPoint2f(*convexHull?.toArray()))
+
+        val finalBitmap = EscanerUtils.getMatAsBitmap(matImage)
+        return finalBitmap
+    }
+
     private fun requestPermissions() {
         activityResultLauncher.launch(REQUIRED_PERMISSIONS)
     }
@@ -196,28 +302,5 @@ class Camera2Activity : AppCompatActivity() {
         super.onDestroy()
         cameraExecutor.shutdown()
     }
-
-    private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
-
-        private fun ByteBuffer.toByteArray(): ByteArray {
-            rewind()    // Rewind the buffer to zero
-            val data = ByteArray(remaining())
-            get(data)   // Copy the buffer into a byte array
-            return data // Return the byte array
-        }
-
-        override fun analyze(image: ImageProxy) {
-
-            val buffer = image.planes[0].buffer
-            val data = buffer.toByteArray()
-            val pixels = data.map { it.toInt() and 0xFF }
-            val luma = pixels.average()
-
-            listener(luma)
-
-            image.close()
-        }
-    }
-
 
 }

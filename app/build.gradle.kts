@@ -62,6 +62,7 @@ dependencies {
     // If you want to additionally use the CameraX Extensions library
     implementation(libs.androidx.camera.extensions)
     implementation(project(":OpenCV"))
+    implementation(libs.tesseract4android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
