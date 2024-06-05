@@ -1,6 +1,9 @@
 package com.pdi.escanerapp
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.util.Log
+import com.googlecode.tesseract.android.TessBaseAPI
 import org.opencv.android.Utils
 import org.opencv.core.Core
 import org.opencv.core.CvType
@@ -12,11 +15,17 @@ import org.opencv.core.Point
 import org.opencv.core.Scalar
 import org.opencv.core.Size
 import org.opencv.imgproc.Imgproc
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 
 object EscanerUtils {
     private const val TAG = "EscanerApp/Utils"
 
     var matImage: Mat = Mat()
+    var mConvexHull: MatOfPoint2f? = null
+    lateinit var mContours: List<MatOfPoint>
+    lateinit var tess: TessBaseAPI;
 
     fun loadBitmapAsMat(bitmap: Bitmap) {
         Utils.bitmapToMat(bitmap, matImage)
@@ -29,9 +38,18 @@ object EscanerUtils {
     }
 
 
+    fun addContours(contours: List<MatOfPoint>): Bitmap {
+        val boxColor = Scalar(0.0, 0.0, 255.0)
+        val thickness = 3
+        Imgproc.drawContours(matImage, contours, -1, boxColor, thickness)
+
+        val bitmap = getMatAsBitmap(matImage)
+        return bitmap
+    }
+
     fun addBoundingBox(points: MatOfPoint?): Bitmap {
         if (points != null) {
-            val boxColor = Scalar(0.0, 0.0, 255.0)
+            val boxColor = Scalar(0.0, 255.0, 0.0)
             val thickness = 3
             Imgproc.drawContours(matImage, listOf(points), -1, boxColor, thickness)
         }
@@ -87,7 +105,7 @@ object EscanerUtils {
     }
 
     fun matDetectContours(mat: Mat): List<MatOfPoint> {
-        val contours = mutableListOf<MatOfPoint>()
+        var contours = mutableListOf<MatOfPoint>()
 
         val hierarchy = Mat()
         Imgproc.findContours(
@@ -99,6 +117,10 @@ object EscanerUtils {
         )
         contours.sortByDescending { Imgproc.contourArea(it) }
 
+        contours = contours.filter {
+            Imgproc.arcLength(MatOfPoint2f(*it.toArray()), true) > 1100
+        }.toMutableList()
+
         return contours
     }
 
@@ -108,10 +130,12 @@ object EscanerUtils {
 
         for (c in contours) {
             val peri = Imgproc.arcLength(MatOfPoint2f(*c.toArray()), true)
+//            Log.i(TAG,"Perimeter: $peri")
             val approx = MatOfPoint2f()
             Imgproc.approxPolyDP(MatOfPoint2f(*c.toArray()), approx, 0.02 * peri, true)
             if (approx.rows() > 1) {
                 val rotatedRect = Imgproc.minAreaRect(MatOfPoint2f(*c.toArray()))
+
                 val box = MatOfPoint2f()
                 Imgproc.boxPoints(rotatedRect, box)
                 rotatedRect.points(box.toArray())
@@ -132,9 +156,12 @@ object EscanerUtils {
             }
         }
 
-        if (convexHull == null) return null
+        mConvexHull = convexHull
+        if (mConvexHull == null) {
+            return null
+        }
 
-        return MatOfPoint(*convexHull.toArray())
+        return MatOfPoint(*mConvexHull?.toArray())
     }
 
 
@@ -210,6 +237,56 @@ object EscanerUtils {
 //        Core.transpose(warped,flipped)
 
         return flipped
+    }
+
+    fun initializeTesseract(context: Context): Int {
+        tess = TessBaseAPI()
+        val dataPath = File(context.filesDir, "tessseract")
+        val returnedValue = checkFile(dataPath,context)
+
+        return returnedValue
+    }
+    private fun checkFile(dir: File, context: Context): Int {
+        try {
+            if (!dir.exists() && dir.mkdirs()) {
+                copyFiles(context)
+            }
+            if (dir.exists()) {
+                val dataFilePath = "$dir/spa.traineddata"
+                val dataFile = File(dataFilePath)
+                if (!dataFile.exists()) {
+                    copyFiles(context)
+                }
+            }
+        } catch (e: Exception) {
+            return -1
+        }
+
+        return 0
+    }
+
+    private fun copyFiles(context: Context) {
+        try {
+            val assetManager = context.assets
+            val inputStream = assetManager.open("tessdata/spa.traineddata")
+            val outDir = context.filesDir.toString() + "/tesseract/tessdata/"
+            val outFile = File(outDir, "spa.traineddata")
+            val out = FileOutputStream(outFile)
+            val buffer = ByteArray(1024)
+            var read: Int
+            while (inputStream.read(buffer).also { read = it } != -1) {
+                out.write(buffer, 0, read)
+            }
+            inputStream.close()
+            out.flush()
+            out.close()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+    }
+
+    fun ocrRead(image: Bitmap): String {
+        return ""
     }
 
 }

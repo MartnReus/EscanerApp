@@ -29,6 +29,8 @@ import androidx.core.content.ContextCompat
 import com.pdi.escanerapp.EscanerUtils.matImage
 import com.pdi.escanerapp.databinding.ActivityCamera2Binding
 import org.opencv.android.OpenCVLoader
+import org.opencv.core.Core
+import org.opencv.core.MatOfPoint
 import org.opencv.core.MatOfPoint2f
 import java.io.IOException
 import java.util.concurrent.ExecutorService
@@ -43,6 +45,9 @@ class Camera2Activity : AppCompatActivity() {
 
     private var imageCapture: ImageCapture? = null
     private lateinit var cameraExecutor: ExecutorService
+
+    private var mConvexHull: MatOfPoint? = null
+    private var mContours: List<MatOfPoint> = listOf()
 
     companion object {
         private const val TAG = "EscanerApp/Camera"
@@ -118,8 +123,8 @@ class Camera2Activity : AppCompatActivity() {
 
             val resolutionSelector = ResolutionSelector.Builder()
                 .setResolutionStrategy(
-                    ResolutionStrategy(android.util.Size(1024,576),
-//                        ResolutionStrategy(android.util.Size(1280,720),
+//                    ResolutionStrategy(android.util.Size(1024,576),
+                        ResolutionStrategy(android.util.Size(1280,720),
                         ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER )
                 )
                 .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
@@ -258,10 +263,10 @@ class Camera2Activity : AppCompatActivity() {
     private fun processBitmap(bitmap: Bitmap): Bitmap {
         val filterKernelSize = 5.0
 
-        val morphKernelSize = 5.0
-        val morphItNumber = 3
+        val morphKernelSize = 3.0
+        val morphItNumber = 5
 
-        val thr1 = 150.0
+        val thr1 = 100.0
         val thr2 = 230.0
 
         EscanerUtils.loadBitmapAsMat(bitmap)
@@ -269,14 +274,20 @@ class Camera2Activity : AppCompatActivity() {
         matImage = EscanerUtils.matFilterGaussian(matImage,filterKernelSize)
         matImage = EscanerUtils.matMorphClose(matImage,morphKernelSize,morphItNumber)
         matImage = EscanerUtils.matCanny(matImage,thr1,thr2)
-//        matImage = EscanerUtils.matEdgesHough(matImage)
-        val contours = EscanerUtils.matDetectContours(matImage)
-        val convexHull = EscanerUtils.findConvexHull(contours)
+        matImage = EscanerUtils.matEdgesHough(matImage)
+        mContours = EscanerUtils.matDetectContours(matImage)
+        mConvexHull = EscanerUtils.findConvexHull(mContours)
 
         EscanerUtils.loadBitmapAsMat(bitmap)
 
 
-        matImage = EscanerUtils.fourPointTransform(matImage, MatOfPoint2f(*convexHull?.toArray()))
+        if (EscanerUtils.mConvexHull != null)
+            matImage = EscanerUtils.fourPointTransform(matImage, MatOfPoint2f(*mConvexHull?.toArray()))
+        else {
+            Log.i(TAG,"mConvexHull.size: ${mConvexHull?.toArray()?.size}")
+            Core.transpose(matImage,matImage)
+            Core.flip(matImage,matImage,1)
+        }
 
         val finalBitmap = EscanerUtils.getMatAsBitmap(matImage)
         return finalBitmap

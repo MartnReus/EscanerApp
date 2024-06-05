@@ -25,6 +25,7 @@ class FrameAnalyzer(private val previewView: ImageView): ImageAnalysis.Analyzer 
     }
 
     private var mConvexHull: MatOfPoint? = null
+    private var mContours: List<MatOfPoint> = listOf()
 
     override fun analyze(image: ImageProxy) {
         if (!::bitmapBuffer.isInitialized) {
@@ -48,11 +49,13 @@ class FrameAnalyzer(private val previewView: ImageView): ImageAnalysis.Analyzer 
             val processedBitmap = processBitmap(rotatedBitmap, image.width, image.height)
             updatePreview(processedBitmap)
         } else {
-            var boundedBitmap = rotatedBitmap
-            if (mConvexHull != null) {
+//            var boundedBitmap = rotatedBitmap
+//            if (mContours.isNotEmpty()) {
                 EscanerUtils.loadBitmapAsMat(rotatedBitmap)
-                boundedBitmap = EscanerUtils.addBoundingBox(mConvexHull)
-            }
+                val boundedBitmap = EscanerUtils.addBoundingBox(mConvexHull)
+                EscanerUtils.loadBitmapAsMat(boundedBitmap)
+//                boundedBitmap = EscanerUtils.addContours(mContours)
+//            }
             updatePreview(boundedBitmap)
         }
 
@@ -76,10 +79,10 @@ class FrameAnalyzer(private val previewView: ImageView): ImageAnalysis.Analyzer 
     private fun processBitmap(bitmap: Bitmap, width: Int, height: Int): Bitmap {
         val filterKernelSize = 5.0
 
-        val morphKernelSize = 5.0
-        val morphItNumber = 3
+        val morphKernelSize = 3.0
+        val morphItNumber = 5
 
-        val thr1 = 150.0
+        val thr1 = 100.0
         val thr2 = 230.0
 
         EscanerUtils.loadBitmapAsMat(bitmap)
@@ -88,11 +91,12 @@ class FrameAnalyzer(private val previewView: ImageView): ImageAnalysis.Analyzer 
         matImage = EscanerUtils.matMorphClose(matImage,morphKernelSize,morphItNumber)
         matImage = EscanerUtils.matCanny(matImage,thr1,thr2)
 //        matImage = EscanerUtils.matEdgesHough(matImage)
-        val contours = EscanerUtils.matDetectContours(matImage)
-        mConvexHull = EscanerUtils.findConvexHull(contours)
+        mContours = EscanerUtils.matDetectContours(matImage)
+        mConvexHull = EscanerUtils.findConvexHull(mContours)
 
         EscanerUtils.loadBitmapAsMat(bitmap)
-        if (mConvexHull != null) EscanerUtils.addBoundingBox(mConvexHull)
+        if (mConvexHull != null)  return EscanerUtils.addBoundingBox(mConvexHull)
+//        if (mContours.isNotEmpty()) return EscanerUtils.addContours(mContours)
 
         val finalBitmap = EscanerUtils.getMatAsBitmap(matImage)
         return finalBitmap

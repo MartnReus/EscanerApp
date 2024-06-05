@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">EscanerApp2</string>
-    <string name="button_text">Press the Button</string>
-    <string name="camera_text">Take Picture</string>
-    <string name="picture_description">Picture taken by camera</string>
+    <string name="app_name">EscanerApp</string>
+    <string name="button_text">Abrir Camara</string>
+    <string name="camera_text">Tomar foto</string>
+    <string name="picture_description">Imagen tomada por la camara</string>
 </resources>

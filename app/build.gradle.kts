@@ -61,8 +61,12 @@ dependencies {
     // implementation(libs.androidx.camera.mlkit.vision)
     // If you want to additionally use the CameraX Extensions library
     implementation(libs.androidx.camera.extensions)
+
     implementation(project(":OpenCV"))
+
+    // Necessary to use Tesseract
     implementation(libs.tesseract4android)
+    implementation(libs.androidx.exifinterface)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

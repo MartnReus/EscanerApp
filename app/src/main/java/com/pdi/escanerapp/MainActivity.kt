@@ -6,8 +6,10 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -19,7 +21,11 @@ class MainActivity : AppCompatActivity() {
         const val REQUEST_IMAGE_CAPTURE = 1
     }
 
+    private lateinit var ocrManager: OcrManager
+
     private lateinit var imageView: ImageView
+    private lateinit var textView: TextView
+
     private val cameraActivityResultLauncher: ActivityResultLauncher<Intent> = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()) {
         result ->
@@ -28,23 +34,29 @@ class MainActivity : AppCompatActivity() {
                 if (filePath != null) {
                     val bitmap = BitmapFactory.decodeFile(filePath)
                     imageView.setImageBitmap(bitmap)
-                    val rotatedBitmap = rotateBitmapIfRequired(bitmap, filePath)
-                    imageView.setImageBitmap(rotatedBitmap)
+//                    val rotatedBitmap = rotateBitmapIfRequired(bitmap, filePath)
+                    // Pasarlo al ocr
+                    ocrManager.initTesseract()
+                    val resultText = ocrManager.getOCRResult(bitmap)
+                    Log.d(TAG,"Result Text: $resultText")
+                    textView.text = resultText
+//                    imageView.setImageBitmap(rotatedBitmap)
+                    ocrManager.onDestroy()
                 }
             }
     }
 
-    private fun rotateBitmapIfRequired(img: Bitmap, path: String): Bitmap {
-        val ei = ExifInterface(path)
-        val orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
-
-        return when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> rotateImage(img, 90f)
-            ExifInterface.ORIENTATION_ROTATE_180 -> rotateImage(img, 180f)
-            ExifInterface.ORIENTATION_ROTATE_270 -> rotateImage(img, 270f)
-            else -> img
-        }
-    }
+//    private fun rotateBitmapIfRequired(img: Bitmap, path: String): Bitmap {
+//        val ei = ExifInterface(path)
+//        val orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
+//
+//        return when (orientation) {
+//            ExifInterface.ORIENTATION_ROTATE_90 -> rotateImage(img, 90f)
+//            ExifInterface.ORIENTATION_ROTATE_180 -> rotateImage(img, 180f)
+//            ExifInterface.ORIENTATION_ROTATE_270 -> rotateImage(img, 270f)
+//            else -> img
+//        }
+//    }
 
     private fun rotateImage(img: Bitmap, degree: Float): Bitmap {
         val matrix = Matrix()
@@ -56,6 +68,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         imageView = findViewById(R.id.image_view)
+        textView = findViewById(R.id.text_view)
         val btnOpenCamera = findViewById<Button>(R.id.btn_open_camera)
 
         btnOpenCamera.setOnClickListener {
@@ -63,6 +76,8 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this,Camera2Activity::class.java)
             cameraActivityResultLauncher.launch(intent)
         }
+
+        ocrManager = OcrManager(this)
     }
 
     override fun onPause() {
